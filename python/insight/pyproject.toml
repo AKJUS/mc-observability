@@ -31,7 +31,7 @@ dependencies = [
     "pymysql==1.1.1",
     "pytz==2024.1",
     "rrcf==0.4.4",
-    "setuptools==72.1.0",
+    "setuptools==78.1.1",
     "sqlalchemy==2.0.34",
     "uvicorn==0.30.6",
 ]
