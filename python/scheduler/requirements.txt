@@ -1,6 +1,6 @@
-apache-airflow==2.8.4
+apache-airflow==3.2.0
 mysqlclient==2.2.4
-apache-airflow-providers-mysql==5.5.4
+apache-airflow-providers-mysql==6.2.0
 SQLAlchemy-Utils==0.41.2
 pyarrow==16.1.0
 numpy==1.24.4
