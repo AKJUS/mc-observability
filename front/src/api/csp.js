@@ -1,15 +1,16 @@
 import client from './client';
 
 // Based on cb-spider MonitoringHandler interface (MonitoringHandler.go)
+// Aligned with cb-spider MetricNameAndUnit() in MonitoringHandler.go
 const CSP_METRICS = [
-  { key: 'cpu_usage', label: 'CPU Usage', unit: '%' },
-  { key: 'memory_usage', label: 'Memory Usage', unit: '%' },
-  { key: 'disk_read', label: 'Disk Read', unit: 'bytes' },
-  { key: 'disk_write', label: 'Disk Write', unit: 'bytes' },
-  { key: 'disk_read_ops', label: 'Disk Read Ops', unit: 'count' },
-  { key: 'disk_write_ops', label: 'Disk Write Ops', unit: 'count' },
-  { key: 'network_in', label: 'Network In', unit: 'bytes' },
-  { key: 'network_out', label: 'Network Out', unit: 'bytes' },
+  { key: 'cpu_usage', label: 'CPU Usage Percent', unit: 'Percent' },
+  { key: 'memory_usage', label: 'Memory Usage Percent', unit: 'Percent' },
+  { key: 'disk_read', label: 'Disk Read Bytes', unit: 'Bytes' },
+  { key: 'disk_write', label: 'Disk Write Bytes', unit: 'Bytes' },
+  { key: 'disk_read_ops', label: 'Disk Read Operations/Sec', unit: 'CountPerSecond' },
+  { key: 'disk_write_ops', label: 'Disk Write Operations/Sec', unit: 'CountPerSecond' },
+  { key: 'network_in', label: 'Network In', unit: 'Bytes' },
+  { key: 'network_out', label: 'Network Out', unit: 'Bytes' },
 ];
 
 export { CSP_METRICS };
@@ -21,34 +22,18 @@ export async function getCspMetric(connectionName, cspResourceName, metricType, 
   return res.data || {};
 }
 
-/**
- * Fetch all CSP metrics for a VM.
- * @param {number} totalMemoryGiB - VM total memory in GiB (from Tumblebug spec.memoryGiB). Used to convert Available Memory Bytes → %.
- */
-export async function getAllCspMetrics(connectionName, cspResourceName, timeBeforeHour = '1', totalMemoryGiB = 0) {
+/** Fetch all CSP metrics for a VM. */
+export async function getAllCspMetrics(connectionName, cspResourceName, timeBeforeHour = '1') {
   const results = {};
-  const totalMemoryBytes = totalMemoryGiB * 1024 * 1024 * 1024;
-
   await Promise.allSettled(
     CSP_METRICS.map(async (m) => {
       const data = await getCspMetric(connectionName, cspResourceName, m.key, '5', timeBeforeHour);
-      let metricName = data.metricName || m.label;
-      let metricUnit = data.metricUnit || m.unit;
-      let points = (data.timestampValues || []).map((v) => ({
+      const metricName = data.metricName || m.label;
+      const metricUnit = data.metricUnit || m.unit;
+      const points = (data.timestampValues || []).map((v) => ({
         x: new Date(v.timestamp).getTime(),
         y: parseFloat(v.value),
       }));
-
-      // Convert "Available Memory Bytes" → "Memory Usage %"
-      if (m.key === 'memory_usage' && totalMemoryBytes > 0 && metricUnit === 'Bytes') {
-        points = points.map((p) => ({
-          ...p,
-          y: Math.max(0, (1 - p.y / totalMemoryBytes) * 100),
-        }));
-        metricName = 'Memory Usage';
-        metricUnit = 'Percent';
-      }
-
       results[m.key] = {
         ...m,
         metricName,
