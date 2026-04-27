@@ -1207,12 +1207,12 @@ index ed577a98..3e108418 100644
 +	return nil, errors.New("Ibm Cloud Driver: not implemented")
 +}
 diff --git a/cloud-control-manager/cloud-driver/drivers/kt/connect/KT_Connection.go b/cloud-control-manager/cloud-driver/drivers/kt/connect/KT_Connection.go
-index 42e7aad7..fbf20120 100644
+index f47e5e84..7c5e64ae 100644
 --- a/cloud-control-manager/cloud-driver/drivers/kt/connect/KT_Connection.go
 +++ b/cloud-control-manager/cloud-driver/drivers/kt/connect/KT_Connection.go
-@@ -141,3 +141,7 @@ func (cloudConn *KTCloudVpcConnection) CreateTagHandler() (irs.TagHandler, error
- func (cloudConn *KTCloudVpcConnection) CreateQuotaInfoHandler() (irs.QuotaInfoHandler, error) {
- 	return nil, fmt.Errorf("KT Cloud VPC Driver: QuotaInfoHandler not supported")
+@@ -143,3 +143,7 @@ func (cloudConn *KTCloudVpcConnection) Close() error {
+ func (cloudConn *KTCloudVpcConnection) CreateTagHandler() (irs.TagHandler, error) {
+ 	return nil, fmt.Errorf("KT Cloud VPC Driver: not implemented")
  }
 +
 +func (cloudConn *KTCloudVpcConnection) CreateMonitoringHandler() (irs.MonitoringHandler, error) {
@@ -1259,12 +1259,12 @@ index fa66ad2c..209deed5 100644
 +	return nil, errors.New("Mock Driver: not implemented")
 +}
 diff --git a/cloud-control-manager/cloud-driver/drivers/ncp/connect/NcpVpcCloudConnection.go b/cloud-control-manager/cloud-driver/drivers/ncp/connect/NcpVpcCloudConnection.go
-index 7466b57f..6495cdf2 100644
+index f12eaadb..67d11bce 100644
 --- a/cloud-control-manager/cloud-driver/drivers/ncp/connect/NcpVpcCloudConnection.go
 +++ b/cloud-control-manager/cloud-driver/drivers/ncp/connect/NcpVpcCloudConnection.go
-@@ -194,3 +194,7 @@ func (cloudConn *NcpVpcCloudConnection) CreateFileSystemHandler() (irs.FileSyste
- func (cloudConn *NcpVpcCloudConnection) CreateQuotaInfoHandler() (irs.QuotaInfoHandler, error) {
- 	return nil, fmt.Errorf("NCP VPC Cloud Driver: QuotaInfoHandler not supported")
+@@ -199,3 +199,7 @@ func (cloudConn *NcpVpcCloudConnection) Close() error {
+ 
+ 	return nil
  }
 +
 +func (cloudConn *NcpVpcCloudConnection) CreateMonitoringHandler() (irs.MonitoringHandler, error) {
