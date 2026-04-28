@@ -706,7 +706,7 @@ services:
 
   # CB-Spider
   mc-infra-connector:
-    image: cloudbaristaorg/cb-spider_azure_monitoring:edge
+    image: cloudbaristaorg/cb-spider:edge
     container_name: mc-infra-connector
     restart: always
     networks:
@@ -715,8 +715,8 @@ services:
     ports:
       - 1024:1024
     volumes:
-      - /docker/cb-spider_azure_monitoring/meta_db/:/root/go/src/github.com/cloud-barista/cb-spider/meta_db/
-      - /docker/cb-spider_azure_monitoring/log/:/root/go/src/github.com/cloud-barista/cb-spider/log/
+      - /docker/cb-spider/meta_db/:/root/go/src/github.com/cloud-barista/cb-spider/meta_db/
+      - /docker/cb-spider/log/:/root/go/src/github.com/cloud-barista/cb-spider/log/
     environment:
       - PLUGIN_SW=OFF
       - SERVER_ADDRESS=0.0.0.0:1024
