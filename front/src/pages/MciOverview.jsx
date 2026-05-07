@@ -303,8 +303,9 @@ export default function MciOverview() {
         })
       )}
 
-      {/* VM Tab — grouped by MCI (like K8s NodeGroup structure) */}
-      {viewTab === 'vm' && allMcis.map((mci) => (
+      {/* VM Tab — grouped by MCI. When a specific mciId is selected via the
+          URL/dropdown, narrow to that one; otherwise show every MCI in the NS. */}
+      {viewTab === 'vm' && (mciId ? allMcis.filter(m => m.id === mciId || m.name === mciId) : allMcis).map((mci) => (
         <div key={mci.id} className="bg-white rounded-lg shadow">
           {/* MCI group header */}
           <div className="px-4 py-3 border-b flex items-center gap-3">
