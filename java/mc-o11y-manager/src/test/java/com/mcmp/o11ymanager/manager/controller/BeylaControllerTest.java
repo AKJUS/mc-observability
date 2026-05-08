@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugMCI;
+import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugInfra;
 import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugSshKey;
 import com.mcmp.o11ymanager.manager.dto.vm.ResultDTO;
 import com.mcmp.o11ymanager.manager.enums.Agent;
@@ -55,12 +55,12 @@ class BeylaControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(beylaController).build();
 
-        TumblebugMCI.Vm mockVm = new TumblebugMCI.Vm();
-        mockVm.setPublicIP("192.168.1.1");
-        mockVm.setSshPort("22");
-        mockVm.setVmUserName("ubuntu");
-        mockVm.setSshKeyId("key-1");
-        when(tumblebugPort.getVM("ns-1", "mci-1", "vm-1")).thenReturn(mockVm);
+        TumblebugInfra.Node mockNode = new TumblebugInfra.Node();
+        mockNode.setPublicIP("192.168.1.1");
+        mockNode.setSshPort("22");
+        mockNode.setNodeUserName("ubuntu");
+        mockNode.setSshKeyId("key-1");
+        when(tumblebugPort.getNode("ns-1", "mci-1", "vm-1")).thenReturn(mockNode);
 
         TumblebugSshKey mockSshKey = new TumblebugSshKey();
         mockSshKey.setPrivateKey("ssh-key-content");

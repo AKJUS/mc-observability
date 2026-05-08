@@ -6,12 +6,12 @@ import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Response body for {@code GET /tumblebug/ns/{nsId}/mci} (list all MCIs in a namespace). */
+/** Response body for {@code GET /tumblebug/ns/{nsId}/infra} (list all Infras in a namespace). */
 @Getter
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TumblebugMCIList {
+public class TumblebugInfraList {
 
-    @JsonProperty("mci")
-    private List<TumblebugMCI> mci;
+    @JsonProperty("infra")
+    private List<TumblebugInfra> infra;
 }

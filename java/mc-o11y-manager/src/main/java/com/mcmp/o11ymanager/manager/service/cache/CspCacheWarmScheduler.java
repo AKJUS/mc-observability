@@ -7,8 +7,8 @@ import com.mcmp.o11ymanager.manager.dto.SpiderClusterInfo;
 import com.mcmp.o11ymanager.manager.dto.SpiderClusterList;
 import com.mcmp.o11ymanager.manager.dto.SpiderMonitoringInfo;
 import com.mcmp.o11ymanager.manager.dto.influx.VmRef;
-import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugMCI;
-import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugMCIList;
+import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugInfra;
+import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugInfraList;
 import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugNS;
 import com.mcmp.o11ymanager.manager.infrastructure.spider.SpiderClient;
 import com.mcmp.o11ymanager.manager.infrastructure.tumblebug.TumblebugClient;
@@ -234,13 +234,14 @@ public class CspCacheWarmScheduler {
         List<VmWithCsp> resolved = new ArrayList<>(active.size());
         for (VmRef ref : active) {
             try {
-                TumblebugMCI.Vm vm = tumblebugService.getVm(ref.nsId(), ref.mciId(), ref.vmId());
-                if (vm == null
-                        || vm.getConnectionName() == null
-                        || vm.getCspResourceName() == null) {
+                TumblebugInfra.Node node =
+                        tumblebugService.getNode(ref.nsId(), ref.mciId(), ref.vmId());
+                if (node == null
+                        || node.getConnectionName() == null
+                        || node.getCspResourceName() == null) {
                     continue;
                 }
-                if (!isCspSupported(vm.getConnectionName())) {
+                if (!isCspSupported(node.getConnectionName())) {
                     continue;
                 }
                 Instant createdAt =
@@ -249,7 +250,10 @@ public class CspCacheWarmScheduler {
                                 .orElse(Instant.EPOCH);
                 resolved.add(
                         new VmWithCsp(
-                                ref, vm.getConnectionName(), vm.getCspResourceName(), createdAt));
+                                ref,
+                                node.getConnectionName(),
+                                node.getCspResourceName(),
+                                createdAt));
             } catch (Exception e) {
                 log.debug(
                         "[CSP-CACHE-WARM] resolve failed ns={}, mci={}, vm={}, err={}",
@@ -275,7 +279,7 @@ public class CspCacheWarmScheduler {
     }
 
     /**
-     * Walks every namespace and MCI in Tumblebug and collects unique connectionNames. Result is
+     * Walks every namespace and Infra in Tumblebug and collects unique connectionNames. Result is
      * memoised for 5 minutes to avoid Tumblebug rate-limit bursts (429 Too Many Requests) when warm
      * runs every minute.
      */
@@ -312,20 +316,20 @@ public class CspCacheWarmScheduler {
                 }
             }
             throttled = true;
-            TumblebugMCIList mciList = getMCIListWithRetry(ns.getId());
-            if (mciList == null || mciList.getMci() == null) {
+            TumblebugInfraList infraList = getInfraListWithRetry(ns.getId());
+            if (infraList == null || infraList.getInfra() == null) {
                 continue;
             }
-            for (TumblebugMCI mci : mciList.getMci()) {
-                if (mci == null || mci.getVm() == null) {
+            for (TumblebugInfra infra : infraList.getInfra()) {
+                if (infra == null || infra.getNode() == null) {
                     continue;
                 }
-                for (TumblebugMCI.Vm vm : mci.getVm()) {
-                    if (vm != null
-                            && vm.getConnectionName() != null
-                            && !vm.getConnectionName().isBlank()
-                            && isCspSupported(vm.getConnectionName())) {
-                        out.add(vm.getConnectionName());
+                for (TumblebugInfra.Node node : infra.getNode()) {
+                    if (node != null
+                            && node.getConnectionName() != null
+                            && !node.getConnectionName().isBlank()
+                            && isCspSupported(node.getConnectionName())) {
+                        out.add(node.getConnectionName());
                     }
                 }
             }
@@ -335,20 +339,20 @@ public class CspCacheWarmScheduler {
     }
 
     /**
-     * Wraps {@code tumblebugClient.getMCIList} with a single retry on 429. Tumblebug rate-limits
+     * Wraps {@code tumblebugClient.getInfraList} with a single retry on 429. Tumblebug rate-limits
      * aggressively (rejects 3rd call in quick succession); a short backoff lets the window reset
      * without failing the whole discovery pass.
      */
-    private TumblebugMCIList getMCIListWithRetry(String nsId) {
+    private TumblebugInfraList getInfraListWithRetry(String nsId) {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
-                return tumblebugClient.getMCIList(nsId);
+                return tumblebugClient.getInfraList(nsId);
             } catch (Exception e) {
                 String msg = e.toString();
                 boolean rateLimited = msg.contains("429") || msg.contains("TooManyRequests");
                 if (!rateLimited || attempt == 2) {
                     log.warn(
-                            "[CSP-CACHE-WARM] getMCIList failed ns={}, attempt={}, err={}",
+                            "[CSP-CACHE-WARM] getInfraList failed ns={}, attempt={}, err={}",
                             nsId,
                             attempt,
                             msg);
