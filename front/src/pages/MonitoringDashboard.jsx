@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getMeasurementFields, getMetricsByVM } from '../api/monitoring';
-import { getMci } from '../api/tumblebug';
+import { getInfra } from '../api/tumblebug';
 import { getPlugins, getPrediction, getDetectionHistory } from '../api/monitoring';
 import { getAllCspMetrics, CSP_METRICS, isCspSupported } from '../api/csp';
 import { getVmItems } from '../api/vm';
@@ -84,8 +84,8 @@ export default function MonitoringDashboard() {
   useEffect(() => {
     if (!nsId || !mciId) return;
     setVmsLoaded(false);
-    getMci(nsId, mciId)
-      .then((data) => { setVms(data.vm || []); setVmsLoaded(true); })
+    getInfra(nsId, mciId)
+      .then((data) => { setVms(data.node || []); setVmsLoaded(true); })
       .catch(() => { setVms([]); setVmsLoaded(true); });
   }, [nsId, mciId]);
 
