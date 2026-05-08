@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { getVmList, getVm, getVmItems, installAgent, uninstallAgent, createVmItem, deleteVmItem } from '../api/vm';
 import { getPlugins } from '../api/monitoring';
-import { getMci, getMciList } from '../api/tumblebug';
+import { getInfra, getInfraList } from '../api/tumblebug';
 import ProviderBadge from '../components/ProviderBadge';
 
 export default function MonitoringConfig() {
@@ -27,8 +27,8 @@ export default function MonitoringConfig() {
     try {
       if (mciId) {
         // Single MCI mode
-        const mciData = await getMci(nsId, mciId);
-        const tbVms = mciData.vm || [];
+        const mciData = await getInfra(nsId, mciId);
+        const tbVms = mciData.node || [];
         let o11yVms = [];
         try { o11yVms = await getVmList(nsId, mciId); } catch {}
         const o11yMap = {};
@@ -38,23 +38,23 @@ export default function MonitoringConfig() {
           return { ...vm, mciId, monitoring_agent_status: o.monitoring_agent_status || null, log_agent_status: o.log_agent_status || null, registered: !!o11yMap[vm.id] };
         });
         setVms(merged);
-        setAllMcis([{ id: mciId, name: mciId, vm: merged, status: mciData.status }]);
+        setAllMcis([{ id: mciId, name: mciId, node: merged, status: mciData.status }]);
       } else {
         // NS level: all MCIs
-        const mcis = await getMciList(nsId);
+        const mcis = await getInfraList(nsId);
         const enriched = await Promise.all(mcis.map(async (mci) => {
           let o11yVms = [];
           try { o11yVms = await getVmList(nsId, mci.id); } catch {}
           const o11yMap = {};
           o11yVms.forEach((v) => { o11yMap[v.vm_id || v.id] = v; });
-          const merged = (mci.vm || []).map((vm) => {
+          const merged = (mci.node || []).map((vm) => {
             const o = o11yMap[vm.id] || {};
             return { ...vm, mciId: mci.id, monitoring_agent_status: o.monitoring_agent_status || null, log_agent_status: o.log_agent_status || null, registered: !!o11yMap[vm.id] };
           });
-          return { ...mci, vm: merged };
+          return { ...mci, node: merged };
         }));
         setAllMcis(enriched);
-        setVms(enriched.flatMap(m => m.vm || []));
+        setVms(enriched.flatMap(m => m.node || []));
       }
     } catch { setVms([]); setAllMcis([]); }
     setLoading(false);
@@ -187,13 +187,13 @@ export default function MonitoringConfig() {
       {/* Server list — grouped by MCI */}
       {loading ? <div className="text-sm text-gray-400 p-4 animate-pulse">Loading...</div>
       : allMcis.map((mci) => {
-        const mciVms = filter ? (mci.vm || []).filter((vm) => (vm.name || vm.id || '').toLowerCase().includes(filter.toLowerCase())) : (mci.vm || []);
+        const mciVms = filter ? (mci.node || []).filter((vm) => (vm.name || vm.id || '').toLowerCase().includes(filter.toLowerCase())) : (mci.node || []);
         return (
         <div key={mci.id} className="bg-white rounded-lg shadow">
           <div className="px-4 py-3 border-b flex items-center gap-3">
             <span className="font-semibold text-sm">{mci.name || mci.id}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${(mci.status || '').includes('Running') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{mci.status || '-'}</span>
-            <span className="text-xs text-gray-400">{(mci.vm || []).length} VMs</span>
+            <span className="text-xs text-gray-400">{(mci.node || []).length} VMs</span>
             <input type="text" placeholder="Filter..." value={filter} onChange={(e) => setFilter(e.target.value)} className="ml-auto border rounded px-2 py-1 text-xs w-32" />
           </div>
           <div className="overflow-auto">

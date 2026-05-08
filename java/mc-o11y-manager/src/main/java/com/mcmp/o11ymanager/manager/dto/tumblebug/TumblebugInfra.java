@@ -7,15 +7,15 @@ import lombok.Setter;
 @Getter
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TumblebugMCI {
+public class TumblebugInfra {
     private String id;
 
-    private Vm[] vm;
+    private Node[] node;
 
     @Getter
     @Setter
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Vm {
+    public static class Node {
         private String resourceType;
 
         private String id; // example: "aws-ap-southeast-1"
@@ -30,11 +30,11 @@ public class TumblebugMCI {
 
         private String name; // example: "aws-ap-southeast-1"
 
-        private String subGroupId;
+        private String nodeGroupId;
 
         private String description;
 
-        private String vmUserName;
+        private String nodeUserName;
 
         private String publicIP;
 

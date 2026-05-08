@@ -7,18 +7,18 @@ export async function getNsList() {
   return res.data?.ns || [];
 }
 
-export async function getMciList(nsId) {
-  const res = await client.get(`${TB_BASE}/ns/${nsId}/mci`);
-  return res.data?.mci || [];
+export async function getInfraList(nsId) {
+  const res = await client.get(`${TB_BASE}/ns/${nsId}/infra`);
+  return res.data?.infra || [];
 }
 
-export async function getMci(nsId, mciId) {
-  const res = await client.get(`${TB_BASE}/ns/${nsId}/mci/${mciId}`);
+export async function getInfra(nsId, infraId) {
+  const res = await client.get(`${TB_BASE}/ns/${nsId}/infra/${infraId}`);
   return res.data || {};
 }
 
-/** Get all MCI list with VM details for a namespace */
-export async function getAllMcisWithVms(nsId) {
-  const mcis = await getMciList(nsId);
-  return mcis || [];
+/** Get all Infra list with Node details for a namespace */
+export async function getAllInfrasWithNodes(nsId) {
+  const infras = await getInfraList(nsId);
+  return infras || [];
 }

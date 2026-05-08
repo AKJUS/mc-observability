@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { queryLogs } from '../api/logs';
-import { getMci, getMciList } from '../api/tumblebug';
+import { getInfra, getInfraList } from '../api/tumblebug';
 import LogTable from '../components/LogTable';
 
 export default function LogViewer() {
@@ -19,7 +19,7 @@ export default function LogViewer() {
   useEffect(() => {
     if (!nsId) return;
     if (!mciId) {
-      getMciList(nsId).then(setMciList).catch(() => setMciList([]));
+      getInfraList(nsId).then(setMciList).catch(() => setMciList([]));
     } else {
       setSelectedMciId(mciId);
     }
@@ -28,8 +28,8 @@ export default function LogViewer() {
   // MCI 선택 시 VM 목록 로드
   useEffect(() => {
     if (!nsId || !selectedMciId) { setVms([]); return; }
-    getMci(nsId, selectedMciId)
-      .then((data) => setVms(data.vm || []))
+    getInfra(nsId, selectedMciId)
+      .then((data) => setVms(data.node || []))
       .catch(() => setVms([]));
   }, [nsId, selectedMciId]);
 

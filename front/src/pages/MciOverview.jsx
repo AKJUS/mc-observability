@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useBasePath from '../hooks/useBasePath';
-import { getMci, getMciList } from '../api/tumblebug';
+import { getInfraList } from '../api/tumblebug';
 import { getMetricsByVM } from '../api/monitoring';
 import { getAllCspMetrics, CSP_METRICS, isCspSupported } from '../api/csp';
 import { getClusters, getCluster, getAllClusterNodeMetrics } from '../api/k8s';
@@ -47,14 +47,14 @@ export default function MciOverview() {
     try {
       if (viewTab === 'k8s') {
         // K8s: load all MCIs to find connections
-        const mcis = await getMciList(nsId);
+        const mcis = await getInfraList(nsId);
         setAllMcis(mcis);
         setVms([]);
       } else {
         // VM: load all MCIs in NS, show grouped
-        const mcis = await getMciList(nsId);
+        const mcis = await getInfraList(nsId);
         setAllMcis(mcis);
-        const allVms = mcis.flatMap(m => m.vm || []);
+        const allVms = mcis.flatMap(m => m.node || []);
         setVms(allVms);
         if (allVms.length > 0) {
           setMetricsLoading(true);
@@ -81,7 +81,7 @@ export default function MciOverview() {
     // since the allMcis state may still be stale (setState is async).
     const mcis = mcisArg || allMcis;
     const vmMciMap = {};
-    mcis.forEach(m => (m.vm || []).forEach(v => { vmMciMap[v.id] = m.id; }));
+    mcis.forEach(m => (m.node || []).forEach(v => { vmMciMap[v.id] = m.id; }));
 
     vmList.forEach(async (vm) => {
       const vmMciId = vmMciMap[vm.id] || mciId;
@@ -114,9 +114,9 @@ export default function MciOverview() {
     (async () => {
       // Get all MCIs in namespace to find all connections
       let mcis = [];
-      try { mcis = await getMciList(nsId); } catch {}
+      try { mcis = await getInfraList(nsId); } catch {}
       setAllMcis(mcis);
-      const allVms = mcis.flatMap(m => m.vm || []);
+      const allVms = mcis.flatMap(m => m.node || []);
       const connNames = [...new Set(allVms.map(v => v.connectionName).filter(Boolean))];
       // Search clusters across all connections
       const results = await Promise.allSettled(connNames.map(async (conn) => {
@@ -184,7 +184,7 @@ export default function MciOverview() {
 
   if (loading) return <p className="text-sm text-gray-400 p-4">Loading...</p>;
 
-  const allVmsFlat = allMcis.flatMap(m => m.vm || []);
+  const allVmsFlat = allMcis.flatMap(m => m.node || []);
   const hasCspVm = allVmsFlat.some((vm) => isCspSupported(vm.connectionName));
   const showDataSourceToggle = (viewTab === 'vm' && hasCspVm) || viewTab === 'k8s';
   const totalVms = allVmsFlat.length;
@@ -313,11 +313,11 @@ export default function MciOverview() {
             <span className={`text-xs px-2 py-0.5 rounded-full ${(mci.status || '').includes('Running') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
               {mci.status || '-'}
             </span>
-            <span className="text-xs text-gray-400 ml-auto">{(mci.vm || []).length} VMs</span>
+            <span className="text-xs text-gray-400 ml-auto">{(mci.node || []).length} VMs</span>
           </div>
           {/* VM cards inside */}
           <div className="p-3 space-y-3">
-            {(mci.vm || []).map((vm) => (
+            {(mci.node || []).map((vm) => (
               <VmCard
                 key={vm.id}
                 vm={vm}

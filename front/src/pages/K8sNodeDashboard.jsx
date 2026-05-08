@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getClusters, getCluster, getAllClusterNodeMetrics } from '../api/k8s';
-import { getMciList } from '../api/tumblebug';
+import { getInfraList } from '../api/tumblebug';
 import { CSP_METRICS } from '../api/csp';
 import MetricChart from '../components/MetricChart';
 import ProviderBadge from '../components/ProviderBadge';
@@ -33,8 +33,8 @@ export default function K8sNodeDashboard() {
     setClustersLoading(true);
     (async () => {
       let mcis = [];
-      try { mcis = await getMciList(nsId); } catch {}
-      const connNames = [...new Set(mcis.flatMap(m => (m.vm || []).map(v => v.connectionName)).filter(Boolean))];
+      try { mcis = await getInfraList(nsId); } catch {}
+      const connNames = [...new Set(mcis.flatMap(m => (m.node || []).map(v => v.connectionName)).filter(Boolean))];
       const results = await Promise.allSettled(connNames.map(async (conn) => {
         const list = await getClusters(conn);
         return list.map(c => ({ name: c.IId?.NameId, connectionName: conn }));

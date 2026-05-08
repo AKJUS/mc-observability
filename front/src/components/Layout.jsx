@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { NavLink, Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
 import useBasePath from '../hooks/useBasePath';
 import { setApiToken } from '../api/client';
-import { getNsList, getMciList, getMci } from '../api/tumblebug';
+import { getNsList, getInfraList, getInfra } from '../api/tumblebug';
 
 const navItems = [
   { label: 'Monitoring', path: 'monitoring' },
@@ -40,7 +40,7 @@ export default function Layout() {
   const loadMciList = useCallback(async (ns) => {
     if (!ns) { setMciList([]); return []; }
     try {
-      const list = await getMciList(ns);
+      const list = await getInfraList(ns);
       const arr = Array.isArray(list) ? list : [];
       setMciList(arr);
       return arr;
@@ -51,8 +51,8 @@ export default function Layout() {
   const loadVmList = useCallback(async (ns, mci) => {
     if (!ns || !mci) { setVmList([]); return; }
     try {
-      const data = await getMci(ns, mci);
-      setVmList(data.vm || []);
+      const data = await getInfra(ns, mci);
+      setVmList(data.node || []);
     } catch { setVmList([]); }
   }, []);
 

@@ -2,7 +2,7 @@ package com.mcmp.o11ymanager.manager.controller;
 
 import static com.mcmp.o11ymanager.manager.service.domain.SemaphoreDomainService.SEMAPHORE_MAX_PARALLEL_TASKS;
 
-import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugMCI;
+import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugInfra;
 import com.mcmp.o11ymanager.manager.dto.tumblebug.TumblebugSshKey;
 import com.mcmp.o11ymanager.manager.dto.vm.AccessInfoDTO;
 import com.mcmp.o11ymanager.manager.dto.vm.ResultDTO;
@@ -150,8 +150,8 @@ public class BeylaController {
     }
 
     private AccessInfoDTO getAccessInfo(String nsId, String mciId, String vmId) {
-        TumblebugMCI.Vm vm = tumblebugPort.getVM(nsId, mciId, vmId);
-        TumblebugSshKey sshKey = tumblebugPort.getSshKey(nsId, vm.getSshKeyId());
+        TumblebugInfra.Node node = tumblebugPort.getNode(nsId, mciId, vmId);
+        TumblebugSshKey sshKey = tumblebugPort.getSshKey(nsId, node.getSshKeyId());
 
         if (sshKey == null) {
             log.warn("SSH private key not found");
@@ -159,9 +159,9 @@ public class BeylaController {
         }
 
         return AccessInfoDTO.builder()
-                .ip(vm.getPublicIP())
-                .port(Integer.parseInt(vm.getSshPort()))
-                .user(vm.getVmUserName())
+                .ip(node.getPublicIP())
+                .port(Integer.parseInt(node.getSshPort()))
+                .user(node.getNodeUserName())
                 .sshKey(sshKey.getPrivateKey())
                 .build();
     }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { setApiToken } from '../api/client';
-import { getNsList, getMciList, getMci } from '../api/tumblebug';
+import { getNsList, getInfraList, getInfra } from '../api/tumblebug';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -49,7 +49,7 @@ export default function HomePage() {
     setVmId('');
     if (!nsId) return;
     setLoadingMci(true);
-    getMciList(nsId)
+    getInfraList(nsId)
       .then((list) => setMciList(Array.isArray(list) ? list : []))
       .catch(() => setMciList([]))
       .finally(() => setLoadingMci(false));
@@ -61,8 +61,8 @@ export default function HomePage() {
     setVmId('');
     if (!nsId || !mciId) return;
     setLoadingVm(true);
-    getMci(nsId, mciId)
-      .then((data) => setVmList(data.vm || []))
+    getInfra(nsId, mciId)
+      .then((data) => setVmList(data.node || []))
       .catch(() => setVmList([]))
       .finally(() => setLoadingVm(false));
   }, [nsId, mciId]);
