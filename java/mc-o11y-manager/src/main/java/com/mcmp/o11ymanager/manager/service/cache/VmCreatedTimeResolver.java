@@ -58,13 +58,10 @@ public class VmCreatedTimeResolver {
     private Optional<Instant> fetchFromTumblebug(String nsId, String mciId, String vmId) {
         try {
             TumblebugInfra.Node node = tumblebugService.getNode(nsId, mciId, vmId);
-            if (node == null
-                    || node.getCreatedTime() == null
-                    || node.getCreatedTime().isBlank()) {
+            if (node == null || node.getCreatedTime() == null || node.getCreatedTime().isBlank()) {
                 return Optional.empty();
             }
-            LocalDateTime ldt =
-                    LocalDateTime.parse(node.getCreatedTime().trim(), TUMBLEBUG_FORMAT);
+            LocalDateTime ldt = LocalDateTime.parse(node.getCreatedTime().trim(), TUMBLEBUG_FORMAT);
             return Optional.of(ldt.atZone(ZoneId.systemDefault()).toInstant());
         } catch (Exception e) {
             log.debug(
