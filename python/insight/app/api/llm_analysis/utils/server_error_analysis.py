@@ -119,6 +119,9 @@ SUBAGENT_SPECS = {
         ),
         "task_guardrail": (
             "Investigate only logs matching the trace_id/service/time range in the task. "
+            "Do not assume Loki label names (e.g. service_name): first call list_loki_label_names and "
+            "list_loki_label_values to discover the real labels (this platform labels app logs by 'component'), "
+            "then build the LogQL selector from those. "
             "Do not call blocked analyze tools. Stop after enough log evidence is collected."
         ),
     },
