@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import useBasePath from '../hooks/useBasePath';
 import { getInfraList } from '../api/tumblebug';
@@ -71,6 +71,18 @@ export default function InfraOverview() {
   const [reloadKey, setReloadKey] = useState(0);
   const retry = () => setReloadKey((k) => k + 1);
 
+  // This page fans out one request per node×metric. When the user switches menus or
+  // triggers a new load, the previous batch must be cancelled — otherwise stalled
+  // requests keep piling up in the browser. A single controller tracks the in-flight
+  // batch; starting a new batch (or unmounting) aborts the old one.
+  const abortRef = useRef(null);
+  function nextSignal() {
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    return abortRef.current.signal;
+  }
+  useEffect(() => () => { if (abortRef.current) abortRef.current.abort(); }, []);
+
   useEffect(() => {
     if (!nsId) return;
     loadData();
@@ -102,8 +114,9 @@ export default function InfraOverview() {
         setNodes(allNodes);
         if (allNodes.length > 0) {
           setMetricsLoading(true);
-          if (dataSource === 'agent') await loadAgentData(allNodes, enriched);
-          else await loadCspData(allNodes);
+          const signal = nextSignal();
+          if (dataSource === 'agent') await loadAgentData(allNodes, enriched, signal);
+          else await loadCspData(allNodes, signal);
           setMetricsLoading(false);
         }
       }
@@ -120,11 +133,12 @@ export default function InfraOverview() {
     if (nodes.length === 0) return;
     setNodeData({});
     setMetricsLoading(true);
-    const load = dataSource === 'agent' ? loadAgentData : loadCspData;
-    load(nodes).finally(() => setMetricsLoading(false));
+    const signal = nextSignal();
+    const p = dataSource === 'agent' ? loadAgentData(nodes, allInfras, signal) : loadCspData(nodes, signal);
+    p.finally(() => setMetricsLoading(false));
   }, [dataSource]);
 
-  async function loadAgentData(nodeList, infrasArg) {
+  async function loadAgentData(nodeList, infrasArg, signal) {
     // Find which Infra each Node belongs to. Caller must pass the current infras
     // since the allInfras state may still be stale (setState is async).
     const infras = infrasArg || allInfras;
@@ -139,7 +153,8 @@ export default function InfraOverview() {
             const res = await getMetricsByNode(nsId, nodeInfraId, node.id, {
               measurement: m.measurement, range: '1h', groupTime: '1m',
               fields: [{ function: 'mean', field: m.field }],
-            });
+            }, signal);
+            if (signal?.aborted) return;
             setNodeData(prev => ({ ...prev, [node.id]: { ...(prev[node.id] || {}), [m.key]: { res, ...m } } }));
           } catch {}
         })
@@ -147,11 +162,14 @@ export default function InfraOverview() {
     });
   }
 
-  async function loadCspData(nodeList) {
+  async function loadCspData(nodeList, signal) {
     nodeList.forEach(async (node) => {
       if (!node.connectionName || !node.cspResourceName) return;
-      const cspData = await getAllCspMetrics(node.connectionName, node.cspResourceName, '1');
-      setNodeData(prev => ({ ...prev, [node.id]: cspData }));
+      try {
+        const cspData = await getAllCspMetrics(node.connectionName, node.cspResourceName, '1', signal);
+        if (signal?.aborted) return;
+        setNodeData(prev => ({ ...prev, [node.id]: cspData }));
+      } catch {}
     });
   }
 

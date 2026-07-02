@@ -54,7 +54,10 @@ class AnomalyHistoryService:
         all_data.extend(data)
 
         if not data:
-            raise HTTPException(status_code=500, detail="No data retrieved from mc-o11y.")
+            # No metric series yet (agent not installed, or no data in the selected range).
+            # Return an empty frame so the endpoint yields a 200 with empty values instead
+            # of a 500 — "no data" is a normal state, not a server error.
+            return pd.DataFrame(columns=["timestamp", "resource_pct"])
 
         df_cleaned = pd.DataFrame(data[0]["values"], columns=["timestamp", "resource_pct"])
 

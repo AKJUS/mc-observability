@@ -107,8 +107,9 @@ llm:
   model:
     - provider: ollama
       model_name:
-        - llama3.1:8b
-        - mistral:7b
+        - qwen3:30b-a3b
+        - qwen3.6:27b
+        - gemma4:26b
     - provider: openai
       model_name:
         - gpt-5
@@ -199,13 +200,13 @@ alarm_analysis:
     Current time: {current_time}
 
 server_error_analysis:
-  default_provider: openai
-  default_model_name: gpt-5-mini
+  default_provider: ollama
+  default_model_name: qwen3:30b-a3b
   detection_lookback_minutes: 15
   supervisor_recursion_limit: 30
-  supervisor_model_call_limit: 10
+  supervisor_model_call_limit: 15
   supervisor_tool_call_limit: 12
-  subagent_model_call_limit: 8
+  subagent_model_call_limit: 12
   subagent_tool_call_limit: 10
   subagent_tool_retry_max_retries: 2
   system_prompt_first: |

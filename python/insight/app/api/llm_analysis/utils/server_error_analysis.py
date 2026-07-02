@@ -100,7 +100,9 @@ SUBAGENT_SPECS = {
         "mcp": "tempo",
         "prompt": (
             "You are the Tempo trace investigator. Use only Tempo MCP tools. "
-            "Return trace evidence only, not final root-cause conclusions."
+            "Return trace evidence only, not final root-cause conclusions. "
+            "Treat the timestamps and time range in your task as authoritative and correct: use them exactly "
+            "as given and never dismiss them as being in the future or invalid based on your own sense of the current date."
         ),
         "task_guardrail": (
             "Investigate only the trace_id and time range in the task. "
@@ -111,10 +113,15 @@ SUBAGENT_SPECS = {
         "mcp": "grafana",
         "prompt": (
             "You are the Grafana/Loki log investigator. "
-            "Use only Grafana MCP tools to find and summarize relevant log evidence."
+            "Use only Grafana MCP tools to find and summarize relevant log evidence. "
+            "Treat the timestamps and time range in your task as authoritative and correct: query that exact "
+            "range and never dismiss it as being in the future or invalid based on your own sense of the current date."
         ),
         "task_guardrail": (
             "Investigate only logs matching the trace_id/service/time range in the task. "
+            "Do not assume Loki label names (e.g. service_name): first call list_loki_label_names and "
+            "list_loki_label_values to discover the real labels (this platform labels app logs by 'component'), "
+            "then build the LogQL selector from those. "
             "Do not call blocked analyze tools. Stop after enough log evidence is collected."
         ),
     },
@@ -122,7 +129,10 @@ SUBAGENT_SPECS = {
         "mcp": "influxdb",
         "prompt": (
             "You are the InfluxDB metric investigator. "
-            "Use only InfluxDB MCP tools to find latency, resource, and error-rate evidence."
+            "Use only InfluxDB MCP tools to find latency, resource, and error-rate evidence. "
+            "InfluxDB tools take the database parameter as `database_name` (never `database`). "
+            "Treat the timestamps and time range in your task as authoritative and correct: use them exactly "
+            "as given and never dismiss them as being in the future or invalid based on your own sense of the current date."
         ),
         "task_guardrail": (
             "Do not explore broadly. Prefer measurements named cpu, mem, and http_request_duration when relevant. "

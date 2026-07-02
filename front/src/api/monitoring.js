@@ -13,7 +13,7 @@ export async function getPlugins() {
   return res.data?.data || [];
 }
 
-export async function getMetricsByNode(nsId, infraId, nodeId, { measurement, range, groupTime, fields, conditions }) {
+export async function getMetricsByNode(nsId, infraId, nodeId, { measurement, range, groupTime, fields, conditions }, signal) {
   const res = await client.post(`/api/o11y/monitoring/influxdb/metric/${nsId}/${infraId}/${nodeId}`, {
     measurement,
     range,
@@ -22,7 +22,7 @@ export async function getMetricsByNode(nsId, infraId, nodeId, { measurement, ran
     limit: 2000,
     fields: fields || [],
     conditions: conditions || [],
-  });
+  }, { signal });
   return res.data?.data || [];
 }
 
