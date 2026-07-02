@@ -5,6 +5,7 @@ import {
   getAnomalyMeasurements, getAnomalyOptions,
   getPredictionHistory, runPrediction, getPredictionOptions,
   getServerErrorRecords, getServerErrorRecord, detectServerError, rerunServerErrorAnalysis,
+  getLlmModels,
 } from '../api/insight';
 import useScopeTargets, { loadScopeNodes } from '../hooks/useScopeTargets';
 import MetricChart from '../components/MetricChart';
@@ -42,6 +43,26 @@ function AnomalyTab({ nsId, infraId, nodeId }) {
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
 
+  // History target selector: default to the route scope, but let the user pick an
+  // Infra/Cluster + Node so NS-level views don't query infra "undefined".
+  const [histInfra, setHistInfra] = useState(infraId || '');
+  const [histNode, setHistNode] = useState(nodeId || '');
+  const { infras, clusters, loading: scopeLoading } = useScopeTargets(nsId);
+  const [nodeList, setNodeList] = useState([]);
+  const [nodesLoading, setNodesLoading] = useState(false);
+  const isK8s = clusters.some((c) => c.id === histInfra);
+
+  useEffect(() => {
+    if (!nsId || !histInfra) { setNodeList([]); return; }
+    let alive = true;
+    setNodesLoading(true);
+    loadScopeNodes(nsId, histInfra, isK8s)
+      .then((ns) => { if (alive) setNodeList(ns); })
+      .catch(() => { if (alive) setNodeList([]); })
+      .finally(() => { if (alive) setNodesLoading(false); });
+    return () => { alive = false; };
+  }, [nsId, histInfra, isK8s]);
+
   const loadSettings = useCallback(() => {
     getAnomalySettings().then((d) => setSettings(Array.isArray(d) ? d : [])).catch(() => setSettings([]));
   }, []);
@@ -53,10 +74,10 @@ function AnomalyTab({ nsId, infraId, nodeId }) {
   }, [loadSettings]);
 
   async function loadHistory() {
-    if (!selectedMeasurement) return;
+    if (!histInfra || !selectedMeasurement) return;
     setLoading(true);
     try {
-      const data = await getAnomalyHistory(nsId, infraId, nodeId, selectedMeasurement);
+      const data = await getAnomalyHistory(nsId, histInfra, histNode || undefined, selectedMeasurement);
       setHistory(data.values || []);
     } catch { setHistory([]); }
     setLoading(false);
@@ -119,12 +140,41 @@ function AnomalyTab({ nsId, infraId, nodeId }) {
       <div className="bg-white rounded-lg shadow">
         <div className="px-4 py-3 border-b font-semibold text-sm">Anomaly Detection History</div>
         <div className="p-4">
-          <div className="flex gap-3 mb-4">
-            <select className="border border-gray-300 rounded px-3 py-1.5 text-sm" value={selectedMeasurement} onChange={(e) => setSelectedMeasurement(e.target.value)}>
-              <option value="">Select Measurement</option>
-              {(measurements.length ? measurements : options.measurements || []).map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <button onClick={loadHistory} disabled={loading} className="px-4 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50">
+          <div className="flex flex-wrap gap-3 mb-4 items-end">
+            {/* Infra/Cluster selector (hidden when the route already fixes the Infra) */}
+            {!infraId && (
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Infra / Cluster</label>
+                <select value={histInfra} onChange={(e) => { setHistInfra(e.target.value); setHistNode(''); }} className="border border-gray-300 rounded px-3 py-1.5 text-sm">
+                  <option value="">{scopeLoading ? 'Loading…' : 'Select Infra / Cluster'}</option>
+                  {infras.length > 0 && (
+                    <optgroup label="VM Infra">
+                      {infras.map((i) => <option key={i.id} value={i.id}>{i.name || i.id}</option>)}
+                    </optgroup>
+                  )}
+                  {clusters.length > 0 && (
+                    <optgroup label="K8s Cluster">
+                      {clusters.map((c) => <option key={c.id} value={c.id}>{c.name || c.id}</option>)}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Node</label>
+              <select value={histNode} onChange={(e) => setHistNode(e.target.value)} disabled={!histInfra} className="border border-gray-300 rounded px-3 py-1.5 text-sm disabled:bg-gray-100">
+                <option value="">{nodesLoading ? 'Loading nodes…' : 'All nodes'}</option>
+                {!nodesLoading && nodeList.map((n) => <option key={n.id} value={n.id}>{n.name || n.id}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Measurement</label>
+              <select className="border border-gray-300 rounded px-3 py-1.5 text-sm" value={selectedMeasurement} onChange={(e) => setSelectedMeasurement(e.target.value)}>
+                <option value="">Select Measurement</option>
+                {(measurements.length ? measurements : options.measurements || []).map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <button onClick={loadHistory} disabled={loading || !histInfra || !selectedMeasurement} className="px-4 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50">
               {loading ? 'Loading...' : 'Load History'}
             </button>
           </div>
@@ -395,6 +445,24 @@ function ServerErrorTab() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [limit, setLimit] = useState(20);
+  const [llmModels, setLlmModels] = useState([]);
+  const [provider, setProvider] = useState('');
+  const [modelName, setModelName] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const models = await getLlmModels();
+        setLlmModels(models || []);
+        if (models?.length) {
+          setProvider(models[0].provider);
+          setModelName(models[0].model_name?.[0] || '');
+        }
+      } catch { /* leave empty; detect will surface any config error */ }
+    })();
+  }, []);
+
+  const providerModels = llmModels.find((m) => m.provider === provider)?.model_name || [];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -417,15 +485,30 @@ function ServerErrorTab() {
   }
 
   async function handleDetect() {
-    setBusy(true); setMsg('');
-    try {
-      const res = await detectServerError({ provider: 'openai', model_name: 'gpt-5-mini', limit: Number(limit) });
-      setMsg(`Detect requested (accepted=${res?.accepted}, ids=${(res?.analysis_ids || []).join(",") || "-"})`);
-      await load();
-    } catch (e) {
-      setMsg('Detect failed (LLM may be unconfigured): ' + (e.response?.data?.detail || e.response?.data?.error_message || e.response?.data?.rs_msg || e.message));
-    }
-    setBusy(false);
+    setBusy(true);
+    setMsg('Detecting… analysis runs in the background; this list updates automatically.');
+    const body = { limit: Number(limit) };
+    if (provider) body.provider = provider;
+    if (modelName) body.model_name = modelName;
+
+    // Fire the long-running detect+analyze without blocking the list on it.
+    detectServerError(body)
+      .then((res) => setMsg(`Detect finished (ids=${(res?.analysis_ids || []).join(',') || '-'})`))
+      .catch((e) => setMsg('Detect request ended (analysis may still be running): ' + (e.response?.data?.detail || e.response?.data?.error_message || e.response?.data?.rs_msg || e.message)));
+
+    // Poll so newly-created RUNNING records show up quickly and update to their final status.
+    let ticks = 0;
+    const poll = async () => {
+      try {
+        const data = await getServerErrorRecords({ status, size: 50 });
+        setRecords(data.items || []);
+        const active = (data.items || []).some((r) => r.status === 'RUNNING' || r.status === 'PENDING');
+        ticks += 1;
+        if (ticks < 200 && (active || ticks < 8)) { setTimeout(poll, 4000); return; }
+      } catch { /* ignore transient errors, keep polling responsive */ }
+      setBusy(false);
+    };
+    setTimeout(poll, 1500);
   }
 
   async function handleRerun(id) {
@@ -452,13 +535,33 @@ function ServerErrorTab() {
         </div>
         <div className="p-4 flex items-end gap-3 border-b bg-gray-50">
           <div>
+            <label className="block text-xs text-gray-600 mb-1">Provider</label>
+            <select
+              value={provider}
+              onChange={(e) => {
+                const p = e.target.value;
+                setProvider(p);
+                setModelName(llmModels.find((m) => m.provider === p)?.model_name?.[0] || '');
+              }}
+              className="border rounded px-2 py-1.5 text-sm"
+            >
+              {llmModels.map((m) => <option key={m.provider} value={m.provider}>{m.provider}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Model</label>
+            <select value={modelName} onChange={(e) => setModelName(e.target.value)} className="border rounded px-2 py-1.5 text-sm">
+              {providerModels.map((mn) => <option key={mn} value={mn}>{mn}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="block text-xs text-gray-600 mb-1">Limit (max 5xx to analyze)</label>
             <input type="number" min={1} max={100} value={limit} onChange={(e) => setLimit(e.target.value)} className="border rounded px-3 py-1.5 text-sm w-28" />
           </div>
           <button onClick={handleDetect} disabled={busy} className="px-4 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50">
             {busy ? 'Working...' : 'Detect 5xx & Analyze'}
           </button>
-          <span className="text-xs text-gray-400">Analysis requires an LLM (OpenAI/ollama) to be configured.</span>
+          <span className="text-xs text-gray-400">Select an LLM provider/model, then run.</span>
         </div>
         {msg && <p className="text-xs text-gray-500 px-4 pt-2">{msg}</p>}
         <div className="p-4 overflow-auto">

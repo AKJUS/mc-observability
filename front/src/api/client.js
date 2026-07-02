@@ -8,6 +8,10 @@ export function setApiToken(token) {
 
 const client = axios.create({
   baseURL: '',
+  // Without a timeout a slow/stalled backend call (e.g. a metric query for a node
+  // whose agent isn't installed) stays "pending" forever. Dashboards fan out one
+  // request per node×metric, so those hung requests pile up in the browser. Cap them.
+  timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 

@@ -15,19 +15,20 @@ const CSP_METRICS = [
 
 export { CSP_METRICS };
 
-export async function getCspMetric(connectionName, cspResourceName, metricType, periodMinute = '5', timeBeforeHour = '1') {
+export async function getCspMetric(connectionName, cspResourceName, metricType, periodMinute = '5', timeBeforeHour = '1', signal) {
   const res = await client.get(`/api/o11y/monitoring/csp/node/${cspResourceName}/${metricType}`, {
     params: { ConnectionName: connectionName, periodMinute, timeBeforeHour },
+    signal,
   });
   return res.data || {};
 }
 
 /** Fetch all CSP metrics for a Node. */
-export async function getAllCspMetrics(connectionName, cspResourceName, timeBeforeHour = '1') {
+export async function getAllCspMetrics(connectionName, cspResourceName, timeBeforeHour = '1', signal) {
   const results = {};
   await Promise.allSettled(
     CSP_METRICS.map(async (m) => {
-      const data = await getCspMetric(connectionName, cspResourceName, m.key, '5', timeBeforeHour);
+      const data = await getCspMetric(connectionName, cspResourceName, m.key, '5', timeBeforeHour, signal);
       const metricName = data.metricName || m.label;
       const metricUnit = data.metricUnit || m.unit;
       const points = (data.timestampValues || []).map((v) => ({
