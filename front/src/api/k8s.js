@@ -1,4 +1,5 @@
 import client from './client';
+import { toEpochMillis } from '../utils/time';
 import { CSP_METRICS } from './csp';
 
 export async function getClusters(connectionName) {
@@ -36,7 +37,7 @@ export async function getAllClusterNodeMetrics(connectionName, clusterName, node
       const metricName = data.metricName || m.label;
       const metricUnit = data.metricUnit || m.unit;
       const points = (data.timestampValues || []).map((v) => ({
-        x: new Date(v.timestamp).getTime(),
+        x: toEpochMillis(v.timestamp),
         y: parseFloat(v.value),
       }));
       results[m.key] = {

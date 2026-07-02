@@ -9,6 +9,7 @@ import {
 } from '../api/insight';
 import useScopeTargets, { loadScopeNodes } from '../hooks/useScopeTargets';
 import MetricChart from '../components/MetricChart';
+import { formatLocalTime, toEpochMillis } from '../utils/time';
 
 const TABS = ['Anomaly Detection', 'Prediction', 'Server Error Analysis'];
 
@@ -92,7 +93,7 @@ function AnomalyTab({ nsId, infraId, nodeId }) {
   const chartSeries = history.length > 0 ? [{
     name: 'Anomaly Score',
     data: history
-      .map((h) => ({ x: new Date(h.timestamp).getTime(), y: h.anomaly_score ?? (h.value == null ? null : parseFloat(h.value)) }))
+      .map((h) => ({ x: toEpochMillis(h.timestamp), y: h.anomaly_score ?? (h.value == null ? null : parseFloat(h.value)) }))
       .filter((p) => p.y != null && !Number.isNaN(p.y)),
   }] : [];
 
@@ -363,9 +364,9 @@ function PredictionTab({ nsId, infraId, nodeId }) {
     name: isCpu ? 'Predicted CPU Usage (%)' : 'Prediction',
     data: history
       .map((h) => {
-        if (h.value == null) return { x: new Date(h.timestamp).getTime(), y: null };
+        if (h.value == null) return { x: toEpochMillis(h.timestamp), y: null };
         const v = parseFloat(h.value);
-        return { x: new Date(h.timestamp).getTime(), y: isCpu ? 100 - v : v };
+        return { x: toEpochMillis(h.timestamp), y: isCpu ? 100 - v : v };
       })
       .filter((p) => p.y != null && !Number.isNaN(p.y)),
   }] : [];
@@ -629,5 +630,5 @@ function SeBadge({ status }) {
 
 function fmt(t) {
   if (!t) return '-';
-  try { return new Date(t).toLocaleString(); } catch { return String(t); }
+  return formatLocalTime(t) || '-';
 }

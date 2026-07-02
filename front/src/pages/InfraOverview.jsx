@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toEpochMillis } from '../utils/time';
 import { useParams, useNavigate } from 'react-router-dom';
 import useBasePath from '../hooks/useBasePath';
 import { getInfraList } from '../api/tumblebug';
@@ -727,7 +728,7 @@ function getLastValue(metricDTOs) {
   for (const row of m.values) {
     if (row[valIdx] == null) continue;
     const raw = row[tIdx];
-    const ts = typeof raw === 'string' ? new Date(raw).getTime() : Number(raw);
+    const ts = toEpochMillis(raw);
     if (ts > bestTs) {
       bestTs = ts;
       bestVal = parseFloat(row[valIdx]);
@@ -744,7 +745,7 @@ function toSeries(metricDTOs, name, invert) {
     return {
       name: name || 'value',
       data: (m.values || []).filter((row) => row[valIdx] != null).map((row) => ({
-        x: typeof row[timeIdx] === 'string' ? new Date(row[timeIdx]).getTime() : row[timeIdx],
+        x: toEpochMillis(row[timeIdx]),
         y: invert ? 100 - parseFloat(row[valIdx]) : parseFloat(row[valIdx]),
       })),
     };

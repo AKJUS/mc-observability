@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toDate, toEpochMillis } from '../utils/time';
 import { useNavigate } from 'react-router-dom';
 import { getK8sClusters, getK8sAgentStatus } from '../api/k8sAgent';
 import { getMetricsByNode } from '../api/monitoring';
@@ -42,7 +43,7 @@ function getLastValue(res) {
   for (const row of m.values) {
     if (row[vIdx] == null) continue;
     const raw = row[tIdx];
-    const ts = typeof raw === 'string' ? new Date(raw).getTime() : Number(raw);
+    const ts = toEpochMillis(raw);
     if (ts > bestTs) { bestTs = ts; best = parseFloat(row[vIdx]); }
   }
   return best;
@@ -56,7 +57,7 @@ function toSeries(res, name, invert) {
     return {
       name: name || 'value',
       data: (m.values || []).filter((row) => row[vIdx] != null).map((row) => ({
-        x: typeof row[tIdx] === 'string' ? new Date(row[tIdx]).getTime() : row[tIdx],
+        x: toEpochMillis(row[tIdx]),
         y: invert ? 100 - parseFloat(row[vIdx]) : parseFloat(row[vIdx]),
       })),
     };
@@ -190,9 +191,8 @@ export default function K8sAgentMonitor({ nsId }) {
 
 function fmtLastSeen(iso) {
   if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return null;
-  const d = new Date(t);
+  const d = toDate(iso);
+  if (!d) return null;
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 

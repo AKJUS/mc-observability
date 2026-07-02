@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toEpochMillis } from '../utils/time';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getMeasurementFields, getMetricsByNode } from '../api/monitoring';
 import { getInfra } from '../api/tumblebug';
@@ -270,7 +271,7 @@ export default function MonitoringDashboard() {
           if (pred && pred.values && pred.values.length > 0) {
             const predSeries = {
               name: `${selectedMetric} (Predicted)`,
-              data: pred.values.map((v) => ({ x: new Date(v.timestamp).getTime(), y: parseFloat(v.value) })),
+              data: pred.values.map((v) => ({ x: toEpochMillis(v.timestamp), y: parseFloat(v.value) })),
             };
             setChartSeries((prev) => [...prev, predSeries]);
           }
@@ -284,7 +285,7 @@ export default function MonitoringDashboard() {
           if (det && det.values && det.values.length > 0) {
             setDetectionSeries([{
               name: 'Anomaly Score',
-              data: det.values.map((v) => ({ x: new Date(v.timestamp).getTime(), y: v.anomaly_score })),
+              data: det.values.map((v) => ({ x: toEpochMillis(v.timestamp), y: v.anomaly_score })),
             }]);
           } else {
             setDetectionSeries([]);
@@ -512,7 +513,7 @@ function toChartSeries(metricDTOs, metricName) {
       data: (m.values || [])
         .filter((row) => row[valIdx] !== null && row[valIdx] !== undefined)
         .map((row) => ({
-          x: typeof row[timeIdx] === 'string' ? new Date(row[timeIdx]).getTime() : row[timeIdx],
+          x: toEpochMillis(row[timeIdx]),
           y: parseFloat(row[valIdx]),
         })),
     };

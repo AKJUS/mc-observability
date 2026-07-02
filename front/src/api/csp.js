@@ -1,4 +1,5 @@
 import client from './client';
+import { toEpochMillis } from '../utils/time';
 
 // Based on cb-spider MonitoringHandler interface (MonitoringHandler.go)
 // Aligned with cb-spider MetricNameAndUnit() in MonitoringHandler.go
@@ -32,7 +33,7 @@ export async function getAllCspMetrics(connectionName, cspResourceName, timeBefo
       const metricName = data.metricName || m.label;
       const metricUnit = data.metricUnit || m.unit;
       const points = (data.timestampValues || []).map((v) => ({
-        x: new Date(v.timestamp).getTime(),
+        x: toEpochMillis(v.timestamp),
         y: parseFloat(v.value),
       }));
       results[m.key] = {
