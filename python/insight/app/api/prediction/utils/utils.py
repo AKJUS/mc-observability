@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from datetime import datetime
 
@@ -150,7 +151,22 @@ class PredictionService:
         return result_dict
 
     def save_prediction_result(self, df: pd.DataFrame, nsId: str, infraId: str, nodeId: str, measurement: str):
-        self.influxdb_repo.save_results(df, nsId, infraId, nodeId, measurement)
+        # Serialize concurrent runs for the SAME target so delete-before-write can't
+        # interleave (a later run cleanly replaces the earlier one, last-wins).
+        # Different targets keep distinct lock names and stay parallel.
+        lock_name = self._prediction_lock_name(nsId, infraId, nodeId, measurement)
+        locked = self.prediction_repo.acquire_lock(lock_name)
+        try:
+            self.influxdb_repo.save_results(df, nsId, infraId, nodeId, measurement)
+        finally:
+            if locked:
+                self.prediction_repo.release_lock(lock_name)
+
+    @staticmethod
+    def _prediction_lock_name(nsId: str, infraId: str, nodeId: str, measurement: str) -> str:
+        # MariaDB lock names are capped at 64 chars, so hash the (possibly long) target key.
+        raw = f"{nsId}:{infraId}:{nodeId or ''}:{(measurement or '').lower()}"
+        return "pred:" + hashlib.md5(raw.encode()).hexdigest()
 
     @staticmethod
     def convert_prediction_range(prediction_range: str):

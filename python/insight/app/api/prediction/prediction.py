@@ -96,8 +96,12 @@ async def get_prediction_options():
     response_model=ResBodyPredictionMCIResult,
     operation_id="PostPredictionMCI",
 )
-async def predict_mci(body_params: PredictionBody, path_params: PredictionMCIPath = Depends()):
-    prediction_service = PredictionService()
+async def predict_mci(
+    body_params: PredictionBody,
+    path_params: PredictionMCIPath = Depends(),
+    db: Session = Depends(get_db),
+):
+    prediction_service = PredictionService(db=db)
     df = prediction_service.get_data(path_params, body_params)
     result_dict = prediction_service.predict(df, path_params, body_params)
     prediction_result = PredictionMCIResult(
@@ -114,8 +118,12 @@ async def predict_mci(body_params: PredictionBody, path_params: PredictionMCIPat
     response_model=ResBodyPredictionVMResult,
     operation_id="PostPredictionVM",
 )
-async def predict_vm(body_params: PredictionBody, path_params: PredictionVMPath = Depends()):
-    prediction_service = PredictionService()
+async def predict_vm(
+    body_params: PredictionBody,
+    path_params: PredictionVMPath = Depends(),
+    db: Session = Depends(get_db),
+):
+    prediction_service = PredictionService(db=db)
     df = prediction_service.get_data(path_params, body_params)
     result_dict = prediction_service.predict(df, path_params, body_params)
     prediction_result = PredictionVMResult(
