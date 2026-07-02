@@ -9,7 +9,7 @@ class AgentExecutionLimits:
     model_calls: int
     tool_calls: int
     tool_retries: int = 0
-    model_limit_behavior: Literal["end", "error"] = "error"
+    model_limit_behavior: Literal["end", "error"] = "end"
     tool_limit_behavior: Literal["continue", "end", "error"] = "continue"
 
 

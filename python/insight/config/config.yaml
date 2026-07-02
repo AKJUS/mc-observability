@@ -203,9 +203,9 @@ server_error_analysis:
   default_model_name: gpt-5-mini
   detection_lookback_minutes: 15
   supervisor_recursion_limit: 30
-  supervisor_model_call_limit: 10
+  supervisor_model_call_limit: 15
   supervisor_tool_call_limit: 12
-  subagent_model_call_limit: 8
+  subagent_model_call_limit: 12
   subagent_tool_call_limit: 10
   subagent_tool_retry_max_retries: 2
   system_prompt_first: |
