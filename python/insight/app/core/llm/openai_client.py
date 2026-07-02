@@ -1,6 +1,8 @@
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 
+from app.core.llm.structured_agent import wrap_with_structured_fallback
+
 
 class OpenAIClient:
     def __init__(self, api_key: str, base_url=None):
@@ -29,7 +31,7 @@ class OpenAIClient:
         response_format=None,
         middleware=None,
     ):
-        self.agent = create_agent(
+        agent = create_agent(
             model=self.llm,
             tools=tools or [],
             system_prompt=system_prompt,
@@ -37,6 +39,7 @@ class OpenAIClient:
             response_format=response_format,
             middleware=middleware or [],
         )
+        self.agent = wrap_with_structured_fallback(agent, self.llm, response_format)
         return self.agent
 
     def bind_tools(self, tools, memory):

@@ -3,6 +3,8 @@ import os
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 
+from app.core.llm.structured_agent import wrap_with_structured_fallback
+
 # Ollama's default context window (~4k) is far too small for the multi-agent
 # server-error workflow: large trace/log/metric evidence overflows it, the model
 # loses the tool results and the "return the structured result" instruction, and
@@ -44,7 +46,7 @@ class OllamaClient:
         response_format=None,
         middleware=None,
     ):
-        self.agent = create_agent(
+        agent = create_agent(
             model=self.llm,
             tools=tools or [],
             system_prompt=system_prompt,
@@ -52,6 +54,7 @@ class OllamaClient:
             response_format=response_format,
             middleware=middleware or [],
         )
+        self.agent = wrap_with_structured_fallback(agent, self.llm, response_format)
         return self.agent
 
     def bind_tools(self, tools, memory):
