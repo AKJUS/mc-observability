@@ -29,7 +29,16 @@ export default function MetricChart({ title, series, height = 240, chartType = '
   const options = {
     chart: { type: chartType, toolbar: { show: true }, zoom: { enabled: true, type: 'x', autoScaleYaxis: true, allowMouseWheelZoom: false }, animations: { enabled: false } },
     title: { text: title + (yTitle ? ` ${yTitle}` : ''), align: 'left', style: { fontSize: '13px', fontWeight: 600 }, offsetY: 0 },
-    xaxis: { type: 'datetime', labels: { format: 'HH:mm:ss', style: { fontSize: '11px' }, datetimeUTC: false } },
+    xaxis: {
+      type: 'datetime',
+      labels: {
+        // Auto-pick granularity by range instead of a fixed 'HH:mm:ss' (which showed
+        // 00:00:00 on every tick for multi-day ranges like predictions).
+        datetimeFormatter: { year: 'yyyy', month: "MMM 'yy", day: 'MM/dd', hour: 'HH:mm', minute: 'HH:mm:ss', second: 'HH:mm:ss' },
+        style: { fontSize: '11px' },
+        datetimeUTC: false,
+      },
+    },
     yaxis: {
       labels: { formatter, style: { fontSize: '11px' } },
       title: { text: unit.label || '', style: { fontSize: '11px' } },
