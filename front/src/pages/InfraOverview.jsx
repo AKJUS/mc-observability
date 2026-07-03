@@ -471,14 +471,22 @@ function K8sNodeCard({ info, metrics, dataSource, metricsLoading, selectedChart,
   const cspSupported = isCspSupported(info.connectionName);
   const nodeName = info.node?.NameId || info.node?.SystemId || `${info.nodeGroupName} #${info.nodeNumber}`;
   const powered = info.powered !== false;
+  // A K8s node is only truly "Running" when its cluster is Active. While the cluster is
+  // Creating/Updating/Deleting/etc., cb-spider still returns node entries, so reflect the
+  // cluster lifecycle status instead of blindly showing "Running". Placeholder nodes
+  // (cluster off / scaled down) stay "Stopped".
+  const clusterStatus = info.clusterStatus || '';
+  const isActive = clusterStatus.toLowerCase() === 'active';
+  const statusLabel = info.placeholder ? 'Stopped' : (isActive ? 'Running' : (clusterStatus || 'Running'));
+  const statusRunning = statusLabel === 'Running';
 
   const header = (
     <div className="flex items-center justify-between px-4 py-2.5 border-b bg-white">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Node</span>
         <span className={`font-semibold text-sm truncate font-mono ${info.placeholder ? 'text-gray-400 italic' : ''}`}>{nodeName}</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${powered ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{powered ? 'Running' : 'Stopped'}</span>
-        {dataSource === 'csp' && cspSupported && powered && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600" title="CSP API Based">API</span>}
+        <span className={`text-xs px-2 py-0.5 rounded-full ${statusRunning ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{statusLabel}</span>
+        {dataSource === 'csp' && cspSupported && statusRunning && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600" title="CSP API Based">API</span>}
       </div>
       <div className="text-xs text-gray-400 shrink-0">
         <span className="font-mono">#{info.nodeNumber}</span>
@@ -491,6 +499,15 @@ function K8sNodeCard({ info, metrics, dataSource, metricsLoading, selectedChart,
       <div className="bg-white rounded-md border border-gray-200">
         {header}
         <div className="p-8 text-center text-sm text-gray-400">Node is powered off — start the cluster to collect metrics.</div>
+      </div>
+    );
+  }
+
+  if (!isActive) {
+    return (
+      <div className="bg-white rounded-md border border-gray-200">
+        {header}
+        <div className="p-8 text-center text-sm text-gray-400">Cluster is {clusterStatus || 'not active'} — metrics are available once it becomes Active.</div>
       </div>
     );
   }
