@@ -385,34 +385,17 @@ public class CspCacheWarmScheduler {
     }
 
     /**
-     * Wraps {@code tumblebugClient.getInfraList} with a single retry on 429. Tumblebug rate-limits
-     * aggressively (rejects 3rd call in quick succession); a short backoff lets the window reset
-     * without failing the whole discovery pass.
+     * Fetches the infra list, returning {@code null} instead of throwing so one namespace's failure
+     * doesn't abort the whole discovery pass. 429 rate-limit responses are retried with backoff at
+     * the Feign layer (see {@code TumblebugFeignConfig}), so no manual retry loop is needed here.
      */
     private TumblebugInfraList getInfraListWithRetry(String nsId) {
-        for (int attempt = 1; attempt <= 2; attempt++) {
-            try {
-                return tumblebugClient.getInfraList(nsId);
-            } catch (Exception e) {
-                String msg = e.toString();
-                boolean rateLimited = msg.contains("429") || msg.contains("TooManyRequests");
-                if (!rateLimited || attempt == 2) {
-                    log.warn(
-                            "[CSP-CACHE-WARM] getInfraList failed ns={}, attempt={}, err={}",
-                            nsId,
-                            attempt,
-                            msg);
-                    return null;
-                }
-                try {
-                    Thread.sleep(1500L);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return null;
-                }
-            }
+        try {
+            return tumblebugClient.getInfraList(nsId);
+        } catch (Exception e) {
+            log.warn("[CSP-CACHE-WARM] getInfraList failed ns={}, err={}", nsId, e.toString());
+            return null;
         }
-        return null;
     }
 
     private void warmVmMetric(
