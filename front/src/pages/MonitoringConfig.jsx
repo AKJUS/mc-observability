@@ -27,8 +27,14 @@ export default function MonitoringConfig() {
   // Node id the metric apply/toggle overlay belongs to, so switching to another node mid-apply
   // doesn't show "Applying…" on that other node's panel.
   const [busyNodeId, setBusyNodeId] = useState(null);
-  const [globalBusy, setGlobalBusy] = useState(false);
-  const pollRef = useRef(null);
+  // In-flight agent installs/uninstalls keyed by `${infra}/${nodeId}/${kind}` -> 'install' | 'uninstall'.
+  // A map (not one global flag) so agents on different nodes/kinds install concurrently instead of the
+  // whole screen blocking on a single agent at a time.
+  const [pending, setPending] = useState({});
+  const pendingRef = useRef({});
+  const pollRef = useRef({}); // key -> poll interval id (one live poll per in-flight op)
+  const addPending = (key, op) => { pendingRef.current = { ...pendingRef.current, [key]: op }; setPending(pendingRef.current); };
+  const removePending = (key) => { const n = { ...pendingRef.current }; delete n[key]; pendingRef.current = n; setPending(n); };
 
   const loadNodes = useCallback(async (silent = false) => {
     if (!nsId) return;
@@ -69,7 +75,7 @@ export default function MonitoringConfig() {
     if (!silent) setLoading(false);
   }, [nsId, infraId]);
 
-  useEffect(() => { loadNodes(); return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, [loadNodes]);
+  useEffect(() => { loadNodes(); return () => { Object.values(pollRef.current).forEach(clearInterval); }; }, [loadNodes]);
 
   // Silently re-poll agent status so transient states (e.g. SERVICE_INACTIVE right after a
   // VM suspend/resume, before the agent finishes restarting) self-correct without a manual
@@ -77,7 +83,13 @@ export default function MonitoringConfig() {
   const loadNodesRef = useRef(loadNodes);
   useEffect(() => { loadNodesRef.current = loadNodes; }, [loadNodes]);
   const mutatingRef = useRef(false);
-  useEffect(() => { mutatingRef.current = busy || globalBusy; }, [busy, globalBusy]);
+  // Only pause the silent status re-poll during a metric apply/toggle. Agent installs run
+  // concurrently and rely on the live re-poll (+ their own polls) to reflect INSTALLING progress.
+  useEffect(() => { mutatingRef.current = busy; }, [busy]);
+  // Track the current selection so a finishing install doesn't auto-jump the view off the node
+  // the user is looking at.
+  const selectedNodeRef = useRef(null);
+  useEffect(() => { selectedNodeRef.current = selectedNode; }, [selectedNode]);
   useEffect(() => {
     const id = setInterval(() => { if (!mutatingRef.current) loadNodesRef.current(true); }, 10000);
     return () => clearInterval(id);
@@ -85,7 +97,6 @@ export default function MonitoringConfig() {
   useEffect(() => { getPlugins().then(setPlugins).catch(() => setPlugins([])); }, []);
 
   async function selectNode(node) {
-    if (globalBusy) return;
     setSelectedNode(node);
     setSelectedNodeInfraId(node.infraId || infraId);
     setItems([]);
@@ -133,37 +144,38 @@ export default function MonitoringConfig() {
     const verb = op === 'install' ? 'Install' : 'Uninstall';
     if (!confirm(`${verb} ${a.label} on "${node.name || node.id}"?`)) return;
     const infra = node.infraId || infraId;
-    setGlobalBusy(true);
-    setBusyMsg(`${verb}ing ${a.label} on ${node.name || node.id}...`);
+    const key = `${infra}/${node.id}/${kind}`;
+    if (pendingRef.current[key]) return; // this agent is already installing/uninstalling
+    addPending(key, op);
     try {
       await a[op](nsId, infra, node.id);
-      startPolling(node.id, infra, a.field, `${verb}ing ${a.label}`, kind, op);
+      startPolling(key, node.id, infra, a.field, kind, op);
     } catch (err) {
       alert(`${verb} failed: ` + (err.response?.data?.error_message || err.response?.data?.message || err.message));
-      setGlobalBusy(false);
-      setBusyMsg('');
+      removePending(key);
     }
   }
 
-  function startPolling(nodeId, infra, statusField, msgPrefix, kind, op) {
-    if (pollRef.current) clearInterval(pollRef.current);
+  // One independent poll per in-flight agent op, so multiple installs run concurrently.
+  function startPolling(key, nodeId, infra, statusField, kind, op) {
+    if (pollRef.current[key]) clearInterval(pollRef.current[key]);
     let count = 0;
-    pollRef.current = setInterval(async () => {
+    pollRef.current[key] = setInterval(async () => {
       count++;
       try {
         const nodeData = await getNode(nsId, infra, nodeId);
         const status = nodeData?.[statusField];
-        setBusyMsg(`${msgPrefix}... (${status || 'checking'}) [${count * 5}s]`);
         // INSTALLING/UNINSTALLING are in-progress; any other resolved state ends the poll.
         const done = status && !['INSTALLING', 'UNINSTALLING', 'PREPARING', 'IDLE'].includes(status);
         if (done || count > 60) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-          setGlobalBusy(false);
-          setBusyMsg('');
-          await loadNodes();
-          // After a successful monitoring install, auto-select the node to show its metrics.
-          if (kind === 'monitoring' && op === 'install' && (status === 'SUCCESS' || status === 'SERVICE_INACTIVE')) {
+          clearInterval(pollRef.current[key]);
+          delete pollRef.current[key];
+          removePending(key);
+          await loadNodes(true);
+          // After a successful monitoring install, auto-select the node to show its metrics — but
+          // only when the user isn't already looking at another node, so finishing installs don't
+          // yank the view around when several run at once.
+          if (kind === 'monitoring' && op === 'install' && (status === 'SUCCESS' || status === 'SERVICE_INACTIVE') && !selectedNodeRef.current) {
             try {
               const refreshed = await getNodeList(nsId, infra);
               const found = refreshed.find((n) => (n.node_id || n.id) === nodeId);
@@ -212,17 +224,6 @@ export default function MonitoringConfig() {
 
   return (
     <div className="space-y-4 relative">
-      {/* Global busy overlay (install/uninstall) */}
-      {globalBusy && (
-        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg shadow-xl p-6 text-center">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm font-medium text-gray-700">{busyMsg}</p>
-            <p className="text-xs text-gray-400 mt-1">Please wait...</p>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-4 py-3 border-b font-semibold">Monitor Setting</div>
@@ -263,17 +264,20 @@ export default function MonitoringConfig() {
                   const run = nodeRunState(node.status);
                   // Monitoring (telegraf) and Log (fluent-bit) agents are installed independently.
                   const agentControl = (kind, status) => {
+                    const localOp = pending[`${node.infraId || infraId}/${node.id}/${kind}`];
                     const installed = isAgentInstalled(status);
-                    if (status === 'INSTALLING') return <span className="text-xs text-yellow-600 animate-pulse">Installing…</span>;
-                    if (status === 'UNINSTALLING') return <span className="text-xs text-yellow-600 animate-pulse">Uninstalling…</span>;
+                    // Show the pending label from either the just-clicked local op (before the server
+                    // status flips) or the server's own INSTALLING/UNINSTALLING state.
+                    if (status === 'INSTALLING' || localOp === 'install') return <span className="text-xs text-yellow-600 animate-pulse">Installing…</span>;
+                    if (status === 'UNINSTALLING' || localOp === 'uninstall') return <span className="text-xs text-yellow-600 animate-pulse">Uninstalling…</span>;
                     // Install AND uninstall both connect to the host over SSH, which fails ("FAILED
                     // TO CONNECT VM") on a VM that isn't running (suspended/failed/stopped). Don't
                     // offer either button then — just reflect the current agent state.
                     if (run !== 'running') {
                       return <span className="text-xs text-gray-400" title={`Node is not running (${node.status || 'unknown'})`}>{installed ? 'installed' : '—'}</span>;
                     }
-                    if (installed) return <button onClick={(e) => handleAgent(e, node, kind, 'uninstall')} disabled={busy} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50">Uninstall</button>;
-                    return <button onClick={(e) => handleAgent(e, node, kind, 'install')} disabled={busy} className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50">Install</button>;
+                    if (installed) return <button onClick={(e) => handleAgent(e, node, kind, 'uninstall')} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50">Uninstall</button>;
+                    return <button onClick={(e) => handleAgent(e, node, kind, 'install')} className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50">Install</button>;
                   };
                   return (
                   <tr key={node.id} onClick={() => selectNode(node)}
