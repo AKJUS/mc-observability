@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   getK8sClusters, getK8sAgentStatus, getK8sLogStatus,
   installK8sNode, uninstallK8sNode, getK8sNodeMetrics,
@@ -21,8 +21,9 @@ export default function K8sAgentPanel({ nsId }) {
   const [metrics, setMetrics] = useState({ available: [], active: [] });
   const [picked, setPicked] = useState(new Set());
   const [metricLoading, setMetricLoading] = useState(false);
-  const [busy, setBusy] = useState('');
-  const [busyMsg, setBusyMsg] = useState('');
+  // In-flight install/uninstall ops keyed by `${clusterId}/${node}/${mon|log}` -> 'INSTALLING' | 'UNINSTALLING'.
+  // A map (not a single flag) so agents on different nodes/clusters can install concurrently.
+  const [busy, setBusy] = useState({});
   const [applied, setApplied] = useState(''); // `${clusterId}/${node}` after a successful Apply
 
   const load = useCallback(() => {
@@ -54,13 +55,12 @@ export default function K8sAgentPanel({ nsId }) {
 
   useEffect(() => { clusters.forEach((c) => loadStatus(c.id)); }, [clusters, loadStatus]);
 
-  // Periodically re-check agent status so transient states settle on their own (e.g. after a
-  // node restart). Skipped while an install/uninstall is running on a cluster.
-  const busyRef = useRef('');
-  useEffect(() => { busyRef.current = busy; }, [busy]);
+  // Periodically re-check agent status so transient states settle on their own (e.g. after a node
+  // restart) and concurrent installs on other nodes reflect their progress live. In-flight ops keep
+  // their own optimistic label via `busy`, so a refresh mid-op won't clear a node's pending state.
   useEffect(() => {
     if (clusters.length === 0) return;
-    const id = setInterval(() => { if (!busyRef.current) clusters.forEach((c) => loadStatus(c.id)); }, 10000);
+    const id = setInterval(() => { clusters.forEach((c) => loadStatus(c.id)); }, 10000);
     return () => clearInterval(id);
   }, [clusters, loadStatus]);
 
@@ -81,11 +81,13 @@ export default function K8sAgentPanel({ nsId }) {
     setPicked((p) => { const n = new Set(p); n.has(name) ? n.delete(name) : n.add(name); return n; });
   }
 
-  async function run(key, msg, fn, clusterId) {
-    setBusy(key); setBusyMsg(msg);
+  // `kind` ('INSTALLING' | 'UNINSTALLING') is the optimistic label shown on this node until the
+  // server's own task status takes over. Keyed per node so other nodes' ops run independently.
+  async function run(key, kind, fn, clusterId) {
+    setBusy((b) => ({ ...b, [key]: kind }));
     try { await fn(); await loadStatus(clusterId); }
     catch (e) { alert((e.response?.data?.error_message || e.response?.data?.message || e.message)); }
-    setBusy(''); setBusyMsg('');
+    setBusy((b) => { const n = { ...b }; delete n[key]; return n; });
   }
 
   const logRunning = (cid, node) => (logMap[cid] || []).find((n) => n.node === node)?.running;
@@ -98,15 +100,7 @@ export default function K8sAgentPanel({ nsId }) {
       {clusters.map((c) => {
         const nodes = statusMap[c.id] || [];
         return (
-          <div key={c.id} className="bg-white rounded-lg shadow relative">
-            {busy && busy.startsWith(c.id) && (
-              <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
-                <div className="text-center">
-                  <div className="w-7 h-7 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-gray-700">{busyMsg}</p>
-                </div>
-              </div>
-            )}
+          <div key={c.id} className="bg-white rounded-lg shadow">
             <div className="px-4 py-3 border-b flex items-center gap-3">
               <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">K8s</span>
               <span className="font-semibold text-sm">{c.name || c.id}</span>
@@ -137,6 +131,9 @@ export default function K8sAgentPanel({ nsId }) {
                     const logInstalled = logNode?.installed;
                     const logTask = logNode?.taskStatus;
                     const logPending = logTask === 'INSTALLING' || logTask === 'UNINSTALLING';
+                    // Per-node in-flight ops — independent so multiple nodes install at once.
+                    const monKey = `${c.id}/${n.node}/mon`, logKey = `${c.id}/${n.node}/log`;
+                    const monLocal = busy[monKey], logLocal = busy[logKey];
                     return (
                       <tr key={n.node} onClick={() => selectable && selectNode(c.id, n.node)}
                         className={`${selectable ? 'cursor-pointer hover:bg-blue-50' : 'cursor-default'} ${sel?.clusterId === c.id && sel?.node === n.node ? 'bg-blue-100' : ''}`}>
@@ -152,11 +149,11 @@ export default function K8sAgentPanel({ nsId }) {
                             <AgentBadge running={monOn} installed={n.installed} powered={powered} pending={monTask} />
                             {!actionable
                               ? <span className="text-xs text-gray-400">{powered ? '' : 'start cluster to manage'}</span>
-                              : monPending
-                              ? <PendingLabel kind={monTask} />
+                              : (monPending || monLocal)
+                              ? <PendingLabel kind={monLocal || monTask} />
                               : !n.installed
-                              ? <button onClick={() => run(`${c.id}/${n.node}/mon`, `Installing agent on ${n.node}…`, () => installK8sNode(nsId, c.id, n.node, null), c.id)} disabled={!!busy} className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50">Install</button>
-                              : <button onClick={() => run(`${c.id}/${n.node}/mon`, `Uninstalling agent from ${n.node}…`, () => uninstallK8sNode(nsId, c.id, n.node), c.id)} disabled={!!busy} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50">Uninstall</button>}
+                              ? <button onClick={() => run(monKey, 'INSTALLING', () => installK8sNode(nsId, c.id, n.node, null), c.id)} className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50">Install</button>
+                              : <button onClick={() => run(monKey, 'UNINSTALLING', () => uninstallK8sNode(nsId, c.id, n.node), c.id)} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50">Uninstall</button>}
                           </div>
                         </td>
                         <td className="px-4 py-2.5 border-b" onClick={(e) => e.stopPropagation()}>
@@ -164,11 +161,11 @@ export default function K8sAgentPanel({ nsId }) {
                             <AgentBadge running={logOn} installed={logInstalled} powered={powered} pending={logTask} />
                             {!actionable
                               ? <span className="text-xs text-gray-400">{powered ? '' : 'start cluster to manage'}</span>
-                              : logPending
-                              ? <PendingLabel kind={logTask} />
+                              : (logPending || logLocal)
+                              ? <PendingLabel kind={logLocal || logTask} />
                               : !logInstalled
-                              ? <button onClick={() => run(`${c.id}/${n.node}/log`, `Installing log agent on ${n.node}…`, () => installK8sLogNode(nsId, c.id, n.node), c.id)} disabled={!!busy} className="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700 disabled:opacity-50">Install</button>
-                              : <button onClick={() => run(`${c.id}/${n.node}/log`, `Uninstalling log agent from ${n.node}…`, () => uninstallK8sLogNode(nsId, c.id, n.node), c.id)} disabled={!!busy} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50">Uninstall</button>}
+                              ? <button onClick={() => run(logKey, 'INSTALLING', () => installK8sLogNode(nsId, c.id, n.node), c.id)} className="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700 disabled:opacity-50">Install</button>
+                              : <button onClick={() => run(logKey, 'UNINSTALLING', () => uninstallK8sLogNode(nsId, c.id, n.node), c.id)} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50">Uninstall</button>}
                           </div>
                         </td>
                       </tr>
@@ -196,7 +193,7 @@ export default function K8sAgentPanel({ nsId }) {
                         );
                       })}
                     </div>
-                    <button onClick={() => run(`${c.id}/${sel.node}/mon`, `Applying metrics on ${sel.node}…`, async () => {
+                    <button onClick={() => run(`${c.id}/${sel.node}/mon`, 'INSTALLING', async () => {
                         await installK8sNode(nsId, c.id, sel.node, [...picked]);
                         // Keep the user's selection visible. Refresh the available list but do NOT
                         // reset `picked` from InfluxDB-derived "active" — metrics take ~1 min to
@@ -205,7 +202,7 @@ export default function K8sAgentPanel({ nsId }) {
                         try { const m = await getK8sNodeMetrics(nsId, c.id, sel.node); setMetrics((prev) => ({ ...prev, available: m.available || prev.available, active: m.active || [] })); } catch { /* keep current */ }
                         setApplied(`${c.id}/${sel.node}`);
                       }, c.id)}
-                      disabled={!!busy || picked.size === 0}
+                      disabled={!!busy[`${c.id}/${sel.node}/mon`] || picked.size === 0}
                       className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50">
                       Apply (install selected)
                     </button>
